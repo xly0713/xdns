@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"log"
 	"net"
 
@@ -106,7 +107,14 @@ func (h *xdnsHandler) queryGeo(remoteAddr, eRemoteAddr *net.IP) (*geoInfo, error
 func (h *xdnsHandler) queryRRSet(q *dns.Question, geoData *geoInfo) ([]string, uint32, error) {
 	//TODO: query database, such as: redis
 	//key := fmt.Sprintf("%s_%s", q.Name, q.Qtype)
-	return []string{"1.1.1.1", "1.1.2.2"}, 3600, nil
+
+	if q.Qtype == dns.TypeA {
+		return []string{"1.1.1.1", "1.1.2.2"}, 3600, nil
+	} else if q.Qtype == dns.TypeAAAA {
+		return []string{"2001:db8::68"}, 300, nil
+	}
+
+	return nil, 0, errors.New("no rrset")
 }
 
 func encodeRRset(qtype uint16, rr_header *dns.RR_Header, rrs []string) (answer []dns.RR, err error) {
@@ -115,6 +123,13 @@ func encodeRRset(qtype uint16, rr_header *dns.RR_Header, rrs []string) (answer [
 		for _, rr := range rrs {
 			if ip := net.ParseIP(rr); ip != nil {
 				a := &dns.A{Hdr: *rr_header, A: ip}
+				answer = append(answer, a)
+			}
+		}
+	case dns.TypeAAAA:
+		for _, rr := range rrs {
+			if ip := net.ParseIP(rr); ip != nil {
+				a := &dns.AAAA{Hdr: *rr_header, AAAA: ip}
 				answer = append(answer, a)
 			}
 		}
